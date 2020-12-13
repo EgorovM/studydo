@@ -1,0 +1,333 @@
+{% load static %}
+
+<!DOCTYPE html>
+<html lang="en" xmlns="http://www.w3.org/1999/html">
+<head>
+  <title>PubRTC + Mobile</title>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.5.3/dist/css/bootstrap.min.css" integrity="sha384-TX8t27EcRE3e/ihU7zmQxVncDAy5uIKz4rEkgIXeMed4M0jlfIDPvg6uqKI2xXr2" crossorigin="anonymous">
+  <link rel="stylesheet" type="text/css" href="{% static 'fonts/font-awesome-4.3.0/css/font-awesome.min.css' %}" />
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.3/jquery.min.js"></script>
+
+  <script type="text/javascript">
+    var host = "kevingleason.me";
+    if ((host == window.location.host) && (window.location.protocol != "https:"))
+      window.location.protocol = "https";
+  </script>
+  <script src="{% static 'js/modernizr.custom.js' %}"></script>
+  <link rel="stylesheet" type="text/css" href="{% static 'css/normalize.css' %}" />
+  <style>
+    #vid-box {
+      display: inline-block;
+      text-align: center;
+      width: 100%;
+    }
+
+    #vid-box video {
+      width: 47%;
+    }
+  </style>
+</head>
+
+<body>
+  <nav class="navbar navbar-expand-lg navbar-light bg-light">
+    <a class="navbar-brand" href="#">StudyDo</a>
+    <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNavDropdown" aria-controls="navbarNavDropdown" aria-expanded="false" aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="navbarNavDropdown">
+      <ul class="navbar-nav">
+        <li class="nav-item">
+          <a class="nav-link" href="/room/list">Главная</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="{% url 'room-list' %}">Комнаты</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="#" data-toggle="modal" data-target="#exampleModalCenter" id="chat-view-button">
+            <span style="color: red; font-size: 16px; display: none" id="chat-notice">&#8226;</span> Чат
+          </a>
+        </li>
+      </ul>
+    </div>
+  </nav>
+
+  <main>
+
+    <div class="bodyDiv">
+
+      <div class="row">
+        <div class="col-md-6">
+          <div id="vid-box" class="video2"></div>
+          <div id="vid-thumb"></div>
+
+          <div id="inCall" class="ptext">
+            <button id="mute" onclick="mute()">Mute</button>
+            <button id="pause" onclick="pause()">Pause</button>
+          </div>
+
+          {% if room.creator == user.username %}
+            <button type="button" name="button" id="load_tasks">Загрузить задачки</button>
+          {% endif %}
+          <div id="logs" class="ptext"></div>
+        </div>
+        <div class="col-md-6">
+          <div id="tasks">
+          </div>
+        </div>
+      </div>
+
+      <div class="modal fade" id="exampleModalCenter" role="dialog" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title" id="exampleModalLongTitle">Чат: {{room.name}}</h5>
+              <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                <span aria-hidden="true">&times;</span>
+              </button>
+            </div>
+            <div class="modal-body">
+              <div id="chat-log" style="width: 100%; min-height: 200px; text-align: left"></div><br>
+              <input id="chat-message-input" type="text" style="width: 100%"><br>
+              <input id="chat-message-submit" type="button" value="Send">
+              <input type="file" multiple="multiple" accept="image/*">
+            </div>
+          </div>
+        </div>
+      </div>
+
+
+      <script src="{% static 'js/pubnub.min.js' %}"></script>
+      <script src="{% static 'js/webrtc.js' %}"></script>
+      <script src="{% static 'js/rtc-controller.js' %}"></script>
+
+      <script type="text/javascript">
+        var video_out = document.getElementById("vid-box");
+        var vid_thumb = document.getElementById("vid-thumb");
+        var vidCount = 0;
+
+        function login(username) {
+          var phone = window.phone = PHONE({
+            number: username || "Anonymous", // listen on username line else Anonymous
+            publish_key: 'pub-c-0dcbd379-8b62-47e8-b9be-15a42139de8b', // Your Pub Key
+            subscribe_key: 'sub-c-cb5f84f8-345e-11eb-a9dc-46d577f2b3de', // Your Sub Key
+          });
+
+          var ctrl = window.ctrl = CONTROLLER(phone, get_xirsys_servers);
+
+          ctrl.ready(function() {
+            ctrl.addLocalStream(vid_thumb);
+            addLog("Logged in as " + username);
+          });
+          ctrl.receive(function(session) {
+            session.connected(function(session) {
+              video_out.appendChild(session.video);
+              addLog(session.number + " has joined.");
+              vidCount++;
+            });
+            session.ended(function(session) {
+              ctrl.getVideoElement(session.number).remove();
+              addLog(session.number + " has left.");
+              vidCount--;
+            });
+          });
+          ctrl.videoToggled(function(session, isEnabled) {
+            ctrl.getVideoElement(session.number).toggle(isEnabled);
+            addLog(session.number + ": video enabled - " + isEnabled);
+          });
+          ctrl.audioToggled(function(session, isEnabled) {
+            ctrl.getVideoElement(session.number).css("opacity", isEnabled ? 1 : 0.75);
+            addLog(session.number + ": audio enabled - " + isEnabled);
+          });
+          return false;
+        }
+
+        function makeCall(number) {
+          var num = number;
+          if (phone.number() == num) return false;
+          ctrl.isOnline(num, function(isOn) {
+            console.log(isOn)
+            if (isOn) ctrl.dial(num);
+            else{alert("Комната еще не запущена"); window.location = '/room/list'};
+          });
+          return false;
+        }
+
+        function mute() {
+          var audio = ctrl.toggleAudio();
+          if (!audio) $("#mute").html("Unmute");
+          else $("#mute").html("Mute");
+        }
+
+        function end() {
+          ctrl.hangup();
+        }
+
+        function pause() {
+          var video = ctrl.toggleVideo();
+          if (!video) $('#pause').html('Unpause');
+          else $('#pause').html('Pause');
+        }
+
+        function getVideo(number) {
+          return $('*[data-number="' + number + '"]');
+        }
+
+        function addLog(log) {
+          $('#logs').append("<p>" + log + "</p>");
+        }
+
+        function get_xirsys_servers() {
+          var servers;
+          $.ajax({
+            type: 'POST',
+            url: 'https://service.xirsys.com/ice',
+            data: {
+              room: 'default',
+              application: 'default',
+              domain: 'kevingleason.me',
+              ident: 'gleasonk',
+              secret: 'b9066b5e-1f75-11e5-866a-c400956a1e19',
+              secure: 1,
+            },
+            success: function(res) {
+              console.log(res);
+              res = JSON.parse(res);
+              if (!res.e) servers = res.d.iceServers;
+            },
+            async: false
+          });
+          return servers;
+        }
+
+        function errWrap(fxn, form) {
+          try {
+            return fxn(form);
+          } catch (err) {
+            console.log(err)
+            alert("WebRTC is currently only supported by Chrome, Opera, and Firefox");
+            return false;
+          }
+        }
+      </script>
+
+      <script type="text/javascript">
+        jQuery(document).ready(function($){
+          {% if room.creator == user.username %}
+            errWrap(login, '{{room.id}}');
+          {% else %}
+            errWrap(login, '{{user.username}}');
+            errWrap(makeCall, '{{room.id}}');
+          {% endif %}
+        });
+      </script>
+
+      <script type="text/javascript">
+          const chatSocket = new WebSocket(
+              'ws://'
+              + window.location.host
+              + '/ws/chat/'
+              + '{{room.id}}'
+              + '/'
+          );
+
+          chatSocket.onmessage = function(e) {
+              const data = JSON.parse(e.data);
+              let current_state = $('#chat-log').html();
+
+              if(data.message_type == 'text'){
+                $('#chat-log').html(current_state += `<p>${data.message}</p>\n`);
+              }else if (data.message_type == 'image'){
+                $('#chat-log').html(current_state += `<img src="${data.message}" style="width: 100%">\n`);
+              }
+
+              $('#chat-notice').css('display', 'inline-block');
+              $('#exampleModalCenter').modal('handleUpdate');
+          };
+
+          chatSocket.onclose = function(e) {
+              console.error('Chat socket closed unexpectedly');
+          };
+          $('#chat-view-button').click(function(){
+            $('#chat-notice').css('display', 'none');
+          })
+
+          document.querySelector('#chat-message-input').focus();
+          document.querySelector('#chat-message-input').onkeyup = function(e) {
+              if (e.keyCode === 13) {  // enter, return
+                  document.querySelector('#chat-message-submit').click();
+              }
+          };
+          document.querySelector('#chat-message-submit').onclick = function(e) {
+              const messageInputDom = document.querySelector('#chat-message-input');
+              const message = messageInputDom.value;
+              chatSocket.send(JSON.stringify({
+                  'message': '{{request.user.username}}: ' + message
+              }));
+              messageInputDom.value = '';
+          };
+      </script>
+
+      <script type="text/javascript">
+        const tasksSocket = new WebSocket(
+            'ws://'
+            + window.location.host
+            + '/ws/tasks/'
+            + '{{room.id}}'
+            + '/'
+        );
+
+        tasksSocket.onmessage = function(e) {
+            const data = JSON.parse(e.data);
+            $('#tasks').html(data.tasks);
+        };
+
+        tasksSocket.onclose = function(e) {
+            console.error('Chat socket closed unexpectedly');
+        };
+
+        document.querySelector('#load_tasks').onclick = function(e) {
+            tasksSocket.send(JSON.stringify({
+
+            }));
+        };
+      </script>
+
+      <script type="text/javascript">
+        var files; // переменная. будет содержать данные файлов
+
+        // заполняем переменную данными, при изменении значения поля file
+        $('input[type=file]').on('change', function(){
+        	files = this.files;
+          console.log('upload')
+          upload_image();
+        });
+
+        const toBase64 = file => new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = error => reject(error);
+        });
+
+        async function upload_image(){
+        	if( typeof files == 'undefined' ) return;
+
+          for(let i = 0; i < files.length; i++){
+            data = await toBase64(files[i]);
+
+            chatSocket.send(JSON.stringify({
+                'type': 'image',
+                'message': data
+            }));
+          }
+        };
+      </script>
+    </div>
+  </main>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.9/umd/popper.min.js" integrity="sha384-ApNbgh9B+Y1QKtv3Rn7W3mgPxhU9K/ScQsAP7hUibX39j7fakFPskvXusvfa0b4Q" crossorigin="anonymous"></script>
+  <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js" integrity="sha384-JZR6Spejh4U02d8jOt6vLEHfe/JQGiRRSQQxSfFWpi1MquVdAyjUar5+76PVCmYl" crossorigin="anonymous"></script>
+  </body>
+</html>
