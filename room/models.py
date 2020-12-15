@@ -19,6 +19,7 @@ class Room(models.Model):
 
     creator = models.CharField(max_length=162)
     max_people = models.IntegerField(default=5)
+    audio_works = models.BooleanField(default=False)
 
     pub_date = models.DateTimeField(auto_now=True)
 
