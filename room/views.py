@@ -3,6 +3,7 @@ import random
 import bs4
 import requests
 
+from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.views.decorators.csrf import csrf_exempt
 from django.shortcuts import render, redirect
@@ -12,6 +13,7 @@ from django.urls import reverse_lazy
 from room.models import Room
 
 
+@login_required
 def room_list(request):
     subject = request.GET.get('subject', '')
 
@@ -23,11 +25,13 @@ def room_list(request):
     return render(request, 'room/room-list.html', locals())
 
 
+@login_required
 def room(request, id):
     room = Room.objects.get(id=id)
     return render(request, 'room/group-room.html', locals())
 
 
+@login_required
 def create_room(request):
     room_name = 'create_room'
     subjects = Room.SUBJECTS
