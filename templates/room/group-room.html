@@ -17,16 +17,31 @@
       window.location.protocol = "https";
   </script>
   <script src="{% static 'js/modernizr.custom.js' %}"></script>
-  <link rel="stylesheet" type="text/css" href="{% static 'css/normalize.css' %}" />
   <style>
     #vid-box {
-      display: inline-block;
+      display: grid;
       text-align: center;
       width: 100%;
+      grid-template-columns: 1fr 1fr;
     }
-
     #vid-box video {
-      width: 47%;
+      width: 128px;
+    }
+    #vid-thumb video {
+      width: 256px;
+    }
+    .video-container {
+      position: absolute;
+      width: 256px;
+      bottom: 0;
+      right: 10px;
+    }
+    #imageTemp{
+      position: absolute;
+      top: 0px;
+      left: 0px;
+      z-index: 2px;
+      border: 1px solid red;
     }
   </style>
 </head>
@@ -50,33 +65,58 @@
             <span style="color: red; font-size: 16px; display: none" id="chat-notice">&#8226;</span> Чат
           </a>
         </li>
+        {% if room.creator == user.username %}
+          <li class="nav-item">
+            <a class="nav-link" href="#" data-toggle="modal" data-target="#tasksChoiceModal" id="chat-view-button">
+              Загрузить задачи
+            </a>
+          </li>
+        {% endif %}
+
       </ul>
     </div>
   </nav>
-
   <main>
 
-    <div class="bodyDiv">
-
-      <div class="row">
+    <div class="bodyDiv ml-3 mr-6">
+      <div class="row mt-5">
         <div class="col-md-6">
-          <div id="vid-box" class="video2"></div>
-          <div id="vid-thumb"></div>
+          <div class="ml-3">
+            <div id="inCall" class="ptext">
+              <p>
+                <label>Инструмент:
+                  <select id="dtool">
+                    <option value="line">Линия</option>
+                    <option value="rect">Прямоугольник</option>
+                    <option value="pencil">Карандаш</option>
+                    <option value="eraser">Продвинутый Ластик</option>
+                  </select>
+                </label>
+              </p>
+              <div id="container" style="position: relative">
+                <canvas id="imageView" style="border: 1px solid black; width: 100%; height: 300px">
+                  <p>Unfortunately, your browser is currently unsupported by our web application. We are sorry for the inconvenience. Please use one of the supported browsers listed below, or draw the image you want using an offline tool.</p>
+                  <p>Supported browsers: <a href="http://www.opera.com">Opera</a>, <a href="http://www.mozilla.com">Firefox</a>, <a href="http://www.apple.com/safari">Safari</a>, and <a href="http://www.konqueror.org">Konqueror</a>.</p>
+                </canvas>
+              </div>
+              {% if room.audio_works %}
+                <button class="btn btn-secondary" id="mute" onclick="mute()">Выключить микрофон</button>
+              {% endif %}
+              <button class="btn btn-secondary" id="pause" onclick="pause()">Выключить видео</button>
+            </div>
 
-          <div id="inCall" class="ptext">
-            <button id="mute" onclick="mute()">Mute</button>
-            <button id="pause" onclick="pause()">Pause</button>
+            <div id="logs" class="ptext"></div>
           </div>
-
-          {% if room.creator == user.username %}
-            <button type="button" name="button" id="load_tasks">Загрузить задачки</button>
-          {% endif %}
-          <div id="logs" class="ptext"></div>
         </div>
         <div class="col-md-6">
           <div id="tasks">
           </div>
         </div>
+      </div>
+
+      <div class="video-container">
+        <div id="vid-box" class="video2"></div>
+        <div id="vid-thumb"></div>
       </div>
 
       <div class="modal fade" id="exampleModalCenter" role="dialog" aria-hidden="true">
@@ -98,10 +138,51 @@
         </div>
       </div>
 
+      <div class="modal fade" id="tasksChoiceModal" role="dialog" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title" id="exampleModalLongTitle">Чат: {{room.name}}</h5>
+              <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                <span aria-hidden="true">&times;</span>
+              </button>
+            </div>
+            <div class="modal-body">
+              <div class="row">
+                <div class="col-md-6 mb-3">
+                  <label for="room-subject">Предмет *</label>
+                  <select name="room-subject" class="custom-select d-block w-100" id="room-subject" required>
+                    {% for name, subject in subjects %}
+                      <option value="{{name}}">{{subject}}</option>
+                    {% endfor %}
+                  </select>
+                  <div class="invalid-feedback">
+                    Выберите одну из специализаций.
+                  </div>
+                </div>
+                <div class="col-md-6 mb-3">
+                  <label for="room-subject">Класс *</label>
+                  <select name="room-subject" class="custom-select d-block w-100" id="room-subject" required>
+                    {% for name, subject in subjects %}
+                      <option value="{{name}}">{{subject}}</option>
+                    {% endfor %}
+                  </select>
+                  <div class="invalid-feedback">
+                    Выберите одну из специализаций.
+                  </div>
+                </div>
+              </div>
+              <input class="btn btn-primary" id="load_tasks" type="button" value="Загрузить">
+            </div>
+          </div>
+        </div>
+      </div>
 
       <script src="{% static 'js/pubnub.min.js' %}"></script>
       <script src="{% static 'js/webrtc.js' %}"></script>
       <script src="{% static 'js/rtc-controller.js' %}"></script>
+
+      <script src="{% static 'js/board.js' %}"></script>
 
       <script type="text/javascript">
         var video_out = document.getElementById("vid-box");
@@ -119,27 +200,25 @@
 
           ctrl.ready(function() {
             ctrl.addLocalStream(vid_thumb);
-            addLog("Logged in as " + username);
+            addLog("Зашли под именем " + username);
           });
           ctrl.receive(function(session) {
             session.connected(function(session) {
               video_out.appendChild(session.video);
-              addLog(session.number + " has joined.");
+              addLog(session.number + " присоединился.");
               vidCount++;
             });
             session.ended(function(session) {
               ctrl.getVideoElement(session.number).remove();
-              addLog(session.number + " has left.");
+              addLog(session.number + " Вышел.");
               vidCount--;
             });
           });
           ctrl.videoToggled(function(session, isEnabled) {
             ctrl.getVideoElement(session.number).toggle(isEnabled);
-            addLog(session.number + ": video enabled - " + isEnabled);
           });
           ctrl.audioToggled(function(session, isEnabled) {
             ctrl.getVideoElement(session.number).css("opacity", isEnabled ? 1 : 0.75);
-            addLog(session.number + ": audio enabled - " + isEnabled);
           });
           return false;
         }
@@ -157,24 +236,20 @@
 
         function mute() {
           var audio = ctrl.toggleAudio();
-          if (!audio) $("#mute").html("Unmute");
-          else $("#mute").html("Mute");
+          if (!audio) $("#mute").html("Включить микрофон");
+          else $("#mute").html("Выключить микрофон");
         }
-
         function end() {
           ctrl.hangup();
         }
-
         function pause() {
           var video = ctrl.toggleVideo();
-          if (!video) $('#pause').html('Unpause');
-          else $('#pause').html('Pause');
+          if (!video) $('#pause').html('Включить видео');
+          else $('#pause').html('Выключить видео');
         }
-
         function getVideo(number) {
           return $('*[data-number="' + number + '"]');
         }
-
         function addLog(log) {
           $('#logs').append("<p>" + log + "</p>");
         }
@@ -214,12 +289,30 @@
       </script>
 
       <script type="text/javascript">
+        function sleep(ms) {
+          return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        async function try_mute() {
+          await sleep(2000);
+          try{
+            mute()
+          }catch{
+            try_mute()
+          }
+        }
+      </script>
+
+      <script type="text/javascript">
         jQuery(document).ready(function($){
           {% if room.creator == user.username %}
             errWrap(login, '{{room.id}}');
           {% else %}
             errWrap(login, '{{user.username}}');
             errWrap(makeCall, '{{room.id}}');
+          {% endif %}
+          {% if not room.audio_works %}
+            try_mute();
           {% endif %}
         });
       </script>

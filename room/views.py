@@ -42,6 +42,7 @@ def create_room(request):
             name=room_name,
             subject=room_subject,
             description=room_description,
+            audio_works='room-audio-works' in request.POST,
             creator=request.user.username)
 
         return redirect(reverse_lazy('room', kwargs={'id': room.id}))
