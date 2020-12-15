@@ -41,7 +41,7 @@ window.addEventListener('load', function () {
     }
 
     canvas.id     = 'imageTemp';
-    canvas.style.width  = '100%';
+    canvas.style.width  = '400px';
     canvas.style.height = '300px';
     container.appendChild(canvas);
 
@@ -89,6 +89,7 @@ window.addEventListener('load', function () {
   // The general-purpose event handler. This function just determines the mouse
   // position relative to the canvas element.
   function ev_canvas (ev) {
+    console.log(ev.layerX)
     if (ev.layerX || ev.layerX == 0) { // Firefox
       ev._x = ev.layerX;
       ev._y = ev.layerY;
@@ -115,9 +116,6 @@ window.addEventListener('load', function () {
   // #imageTemp is cleared. This function is called each time when the user
   // completes a drawing operation.
   function img_update () {
-    chatSocket.send(JSON.stringify({
-        'message': canvas
-    }));
 		contexto.drawImage(canvas, 0, 0);
 		context.clearRect(0, 0, canvas.width, canvas.height);
   }

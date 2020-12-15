@@ -31,7 +31,7 @@
       width: 256px;
     }
     .video-container {
-      position: absolute;
+      position: fixed;
       width: 256px;
       bottom: 0;
       right: 10px;
@@ -41,12 +41,12 @@
       top: 0px;
       left: 0px;
       z-index: 2px;
-      border: 1px solid red;
+      border: 1px solid black;
     }
   </style>
 </head>
 
-<body>
+<body onresize="change_canvas_size()">
   <nav class="navbar navbar-expand-lg navbar-light bg-light">
     <a class="navbar-brand" href="#">StudyDo</a>
     <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNavDropdown" aria-controls="navbarNavDropdown" aria-expanded="false" aria-label="Toggle navigation">
@@ -78,23 +78,23 @@
   </nav>
   <main>
 
-    <div class="bodyDiv ml-3 mr-6">
+    <div class="bodyDiv">
       <div class="row mt-5">
-        <div class="col-md-6">
-          <div class="ml-3">
+        <div class="col-md-7">
+          <div class="col-md-10 offset-md-1">
             <div id="inCall" class="ptext">
               <p>
                 <label>Инструмент:
                   <select id="dtool">
-                    <option value="line">Линия</option>
-                    <option value="rect">Прямоугольник</option>
+                    <!-- <option value="line">Линия</option>
+                    <option value="rect">Прямоугольник</option> -->
                     <option value="pencil">Карандаш</option>
                     <option value="eraser">Продвинутый Ластик</option>
                   </select>
                 </label>
               </p>
               <div id="container" style="position: relative">
-                <canvas id="imageView" style="border: 1px solid black; width: 100%; height: 300px">
+                <canvas id="imageView" style="border: 1px solid black;">
                   <p>Unfortunately, your browser is currently unsupported by our web application. We are sorry for the inconvenience. Please use one of the supported browsers listed below, or draw the image you want using an offline tool.</p>
                   <p>Supported browsers: <a href="http://www.opera.com">Opera</a>, <a href="http://www.mozilla.com">Firefox</a>, <a href="http://www.apple.com/safari">Safari</a>, and <a href="http://www.konqueror.org">Konqueror</a>.</p>
                 </canvas>
@@ -108,8 +108,10 @@
             <div id="logs" class="ptext"></div>
           </div>
         </div>
-        <div class="col-md-6">
-          <div id="tasks">
+        <div class="col-md-5">
+          <div class="col-md-10 offset-md-1">
+            <div id="tasks">
+            </div>
           </div>
         </div>
       </div>
@@ -151,10 +153,11 @@
               <div class="row">
                 <div class="col-md-6 mb-3">
                   <label for="room-subject">Предмет *</label>
-                  <select name="room-subject" class="custom-select d-block w-100" id="room-subject" required>
-                    {% for name, subject in subjects %}
-                      <option value="{{name}}">{{subject}}</option>
-                    {% endfor %}
+                  <select name="room-subject" class="custom-select d-block w-100" id="subject_choice" required>
+                    <option value="math">Математика</option>
+                    <option value="inf">Информатика</option>
+                    <option value="rus">Русский язык</option>
+                    <option value="bio">Биология</option>
                   </select>
                   <div class="invalid-feedback">
                     Выберите одну из специализаций.
@@ -162,10 +165,8 @@
                 </div>
                 <div class="col-md-6 mb-3">
                   <label for="room-subject">Класс *</label>
-                  <select name="room-subject" class="custom-select d-block w-100" id="room-subject" required>
-                    {% for name, subject in subjects %}
-                      <option value="{{name}}">{{subject}}</option>
-                    {% endfor %}
+                  <select name="room-subject" class="custom-select d-block w-100" id="grade_choice" required>
+                    <option value="11">11</option>
                   </select>
                   <div class="invalid-feedback">
                     Выберите одну из специализаций.
@@ -182,8 +183,323 @@
       <script src="{% static 'js/webrtc.js' %}"></script>
       <script src="{% static 'js/rtc-controller.js' %}"></script>
 
-      <script src="{% static 'js/board.js' %}"></script>
+      <!-- <script src="{% static 'js/board.js' %}"></script> -->
+      <script type="text/javascript">
+      function change_canvas_size(){
+        var canvas = document.getElementById('imageTemp');
+        var canvaso = document.getElementById('imageView');
+        var height = '300';
 
+        canvaso.width = canvaso.parentNode.offsetWidth;
+        canvaso.height = height;
+        canvas.width = canvaso.parentNode.offsetWidth;
+        canvas.height = height;
+      }
+      /* © 2009 ROBO Design
+       * http://www.robodesign.ro
+       */
+
+      // Keep everything in anonymous function, called on window load.
+      if(window.addEventListener) {
+      window.addEventListener('load', function () {
+        var canvas, context, canvaso, contexto;
+        // The active tool instance.
+        var tool;
+        var tool_default = 'pencil';
+
+        var boardSocket;
+
+        function init () {
+          // Find the canvas element.
+          canvaso = document.getElementById('imageView');
+          if (!canvaso) {
+            alert('Error: I cannot find the canvas element!');
+            return;
+          }
+
+          if (!canvaso.getContext) {
+            alert('Error: no canvas.getContext!');
+            return;
+          }
+
+          // Get the 2D canvas context.
+          contexto = canvaso.getContext('2d');
+          if (!contexto) {
+            alert('Error: failed to getContext!');
+            return;
+          }
+
+          // Add the temporary canvas.
+          var container = canvaso.parentNode;
+          canvas = document.createElement('canvas');
+          if (!canvas) {
+            alert('Error: I cannot create a new canvas element!');
+            return;
+          }
+
+          canvas.id     = 'imageTemp';
+          container.appendChild(canvas);
+          change_canvas_size();
+
+          context = canvas.getContext('2d');
+
+          // Get the tool select input.
+          var tool_select = document.getElementById('dtool');
+          if (!tool_select) {
+            alert('Error: failed to get the dtool element!');
+            return;
+          }
+          tool_select.addEventListener('change', ev_tool_change, false);
+
+          // Activate the default tool.
+          if (tools[tool_default]) {
+            tool = new tools[tool_default]();
+            tool_select.value = tool_default;
+          }
+
+          // Attach the mousedown, mousemove and mouseup event listeners.
+          canvas.addEventListener('mousedown', ev_canvas, false);
+          canvas.addEventListener('mousemove', ev_canvas, false);
+          canvas.addEventListener('mouseup',   ev_canvas, false);
+
+          boardSocket = new WebSocket(
+              'wss://'
+              + window.location.host
+              + '/ws/board/'
+              + {{room.id}}
+              + '/'
+          );
+
+          boardSocket.onmessage = function(e) {
+            const data = JSON.parse(e.data);
+            const w = canvas.width;
+            const h = canvas.height;
+
+            drawPencil(data.x0 * w, data.y0 * h, data.x * w, data.y * h);
+          };
+
+          boardSocket.onclose = function(e) {
+              console.error('Chat socket closed unexpectedly');
+          };
+        }
+
+        // The general-purpose event handler. This function just determines the mouse
+        // position relative to the canvas element.
+        function ev_canvas (ev) {
+          if (ev.layerX || ev.layerX == 0) { // Firefox
+            ev._x = ev.layerX;
+            ev._y = ev.layerY;
+          } else if (ev.offsetX || ev.offsetX == 0) { // Opera
+            ev._x = ev.offsetX;
+            ev._y = ev.offsetY;
+          }
+
+          // Call the event handler of the tool.
+          var func = tool[ev.type];
+          if (func) {
+            func(ev);
+          }
+        }
+
+        // The event handler for any changes made to the tool selector.
+        function ev_tool_change (ev) {
+          if (tools[this.value]) {
+            tool = new tools[this.value]();
+          }
+        }
+
+        // This function draws the #imageTemp canvas on top of #imageView, after which
+        // #imageTemp is cleared. This function is called each time when the user
+        // completes a drawing operation.
+
+        function drawPencil(x0, y0, x, y, is_send=false){
+          if(Math.abs(y-y0) + Math.abs(x - x0) > 20) return;
+
+          context.beginPath();
+          context.moveTo(x0, y0);
+          context.lineTo(x, y);
+          context.stroke();
+          context.closePath();
+          context.save();
+
+          const w = canvas.width;
+          const h = canvas.height;
+
+          if(is_send && x0 && y0){
+            console.log(x0, y0, x, y)
+            boardSocket.send(JSON.stringify({
+                'type': 'pencil',
+                'x0': x0 / w,
+                'y0': y0 / h,
+                'x': x / w,
+                'y': y / h,
+            }));
+          }
+        }
+
+        function img_update () {
+      		contexto.drawImage(canvas, 0, 0);
+      		context.clearRect(0, 0, canvas.width, canvas.height);
+        }
+
+        // This object holds the implementation of each drawing tool.
+        var tools = {};
+
+        // The drawing pencil.
+        tools.pencil = function () {
+          var tool = this;
+          this.started = false;
+          this.count = 0;
+
+          // This is called when you start holding down the mouse button.
+          // This starts the pencil drawing.
+          this.mousedown = function (ev) {
+            tool.started = true;
+            this.current_x = ev._x;
+            this.current_y = ev._y;
+            this.count = 0;
+          };
+
+          // This function is called every time you move the mouse. Obviously, it only
+          // draws if the tool.started state is set to true (when you are holding down
+          // the mouse button).
+          this.mousemove = function (ev) {
+            if (tool.started) {
+
+              drawPencil(this.current_x, this.current_y, ev._x, ev._y, true);
+              this.current_x = ev._x;
+              this.current_y = ev._y;
+
+              this.count += 1
+            }
+          };
+
+          // This is called when you release the mouse button.
+          this.mouseup = function (ev) {
+            if (tool.started) {
+              tool.mousemove(ev);
+              tool.started = false;
+              this.current_x = null;
+              this.current_y = null;
+              img_update();
+            }
+          };
+        };
+
+        // The rectangle tool.
+        tools.rect = function () {
+          var tool = this;
+          this.started = false;
+
+          this.mousedown = function (ev) {
+            tool.started = true;
+            tool.x0 = ev._x;
+            tool.y0 = ev._y;
+          };
+
+          this.mousemove = function (ev) {
+            if (!tool.started) {
+              return;
+            }
+
+            var x = Math.min(ev._x,  tool.x0),
+                y = Math.min(ev._y,  tool.y0),
+                w = Math.abs(ev._x - tool.x0),
+                h = Math.abs(ev._y - tool.y0);
+
+            context.clearRect(0, 0, canvas.width, canvas.height);
+
+            if (!w || !h) {
+              return;
+            }
+
+            context.strokeRect(x, y, w, h);
+          };
+
+          this.mouseup = function (ev) {
+            if (tool.started) {
+              tool.mousemove(ev);
+              tool.started = false;
+              img_update();
+            }
+          };
+        };
+
+        // The line tool.
+        tools.line = function () {
+          var tool = this;
+          this.started = false;
+
+          this.mousedown = function (ev) {
+            tool.started = true;
+            tool.x0 = ev._x;
+            tool.y0 = ev._y;
+          };
+
+          this.mousemove = function (ev) {
+            if (!tool.started) {
+              return;
+            }
+
+            context.clearRect(0, 0, canvas.width, canvas.height);
+
+            context.beginPath();
+            context.moveTo(tool.x0, tool.y0);
+            context.lineTo(ev._x,   ev._y);
+            context.stroke();
+            context.closePath();
+          };
+
+          this.mouseup = function (ev) {
+            if (tool.started) {
+              tool.mousemove(ev);
+              tool.started = false;
+              img_update();
+            }
+          };
+        };
+
+        tools.eraser = function () {
+          var tool = this;
+
+          this.started = false;
+
+          // This is called when you start holding down the mouse button.
+          // This starts the pencil drawing.
+          this.mousedown = function (ev) {
+            context.beginPath();
+            context.fillStyle = "white";
+            context.arc(ev._x, ev._y, 8, 0, Math.PI*2, false);
+            tool.started = true;
+          };
+
+          // This function is called every time you move the mouse. Obviously, it only
+          // draws if the tool.started state is set to true (when you are holding down
+          // the mouse button).
+          this.mousemove = function (ev) {
+            if (tool.started) {
+              context.arc(ev._x, ev._y, 8, 0, Math.PI*2, false);
+              context.fill();
+            }
+          };
+
+          // This is called when you release the mouse button.
+          this.mouseup = function (ev) {
+            if (tool.started) {
+              tool.mousemove(ev);
+              tool.started = false;
+              img_update();
+              context.fillStyle = "black";
+            }
+          };
+        };
+
+        init();
+
+      }, false); }
+      // vim:set spell spl=en fo=wan1croql tw=80 ts=2 sw=2 sts=2 sta et ai cin fenc=utf-8 ff=unix:
+      </script>
+      <!-- Конец -->
       <script type="text/javascript">
         var video_out = document.getElementById("vid-box");
         var vid_thumb = document.getElementById("vid-thumb");
@@ -315,11 +631,14 @@
             try_mute();
           {% endif %}
         });
+        window.onunload = function(){
+          end()
+        }
       </script>
 
       <script type="text/javascript">
           const chatSocket = new WebSocket(
-              'ws://'
+              'wss://'
               + window.location.host
               + '/ws/chat/'
               + '{{room.id}}'
@@ -365,7 +684,7 @@
 
       <script type="text/javascript">
         const tasksSocket = new WebSocket(
-            'ws://'
+            'wss://'
             + window.location.host
             + '/ws/tasks/'
             + '{{room.id}}'
@@ -383,8 +702,10 @@
 
         document.querySelector('#load_tasks').onclick = function(e) {
             tasksSocket.send(JSON.stringify({
-
+              'subject': $('#subject_choice option:selected').val(),
+              'grade': $('#grade_choice option:selected').val(),
             }));
+            $('#tasksChoiceModal').modal('hide');
         };
       </script>
 
