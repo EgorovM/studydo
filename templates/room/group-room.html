@@ -133,7 +133,7 @@
             <div class="modal-body">
               <div id="chat-log" style="width: 100%; min-height: 200px; text-align: left"></div><br>
               <input id="chat-message-input" type="text" style="width: 100%"><br>
-              <input id="chat-message-submit" type="button" value="Send">
+              <input id="chat-message-submit" type="button" value="Отправить">
               <input type="file" multiple="multiple" accept="image/*">
             </div>
           </div>
@@ -326,7 +326,7 @@
           const h = canvas.height;
 
           if(is_send && x0 && y0){
-            console.log(x0, y0, x, y)
+
             boardSocket.send(JSON.stringify({
                 'type': 'pencil',
                 'x0': x0 / w,
@@ -538,18 +538,16 @@
           });
           return false;
         }
-
         function makeCall(number) {
           var num = number;
           if (phone.number() == num) return false;
           ctrl.isOnline(num, function(isOn) {
-            console.log(isOn)
+
             if (isOn) ctrl.dial(num);
             else{alert("Комната еще не запущена"); window.location = '/room/list'};
           });
           return false;
         }
-
         function mute() {
           var audio = ctrl.toggleAudio();
           if (!audio) $("#mute").html("Включить микрофон");
@@ -584,7 +582,6 @@
               secure: 1,
             },
             success: function(res) {
-              console.log(res);
               res = JSON.parse(res);
               if (!res.e) servers = res.d.iceServers;
             },
@@ -597,7 +594,6 @@
           try {
             return fxn(form);
           } catch (err) {
-            console.log(err)
             alert("WebRTC is currently only supported by Chrome, Opera, and Firefox");
             return false;
           }
@@ -715,7 +711,7 @@
         // заполняем переменную данными, при изменении значения поля file
         $('input[type=file]').on('change', function(){
         	files = this.files;
-          console.log('upload')
+
           upload_image();
         });
 
