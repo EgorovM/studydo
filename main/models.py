@@ -3,7 +3,7 @@ from django.db import models
 
 
 class Pupil(models.Model):
-    user = models.OneToOneField(User, on_delete=models.CASCADE)
+    user = models.OneToOneField(User, on_delete=models.CASCADE, primary_key=True)
 
     father_name = models.CharField(max_length=128)
     school = models.CharField(max_length=128)

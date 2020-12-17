@@ -516,17 +516,14 @@
 
           ctrl.ready(function() {
             ctrl.addLocalStream(vid_thumb);
-            addLog("Зашли под именем " + username);
           });
           ctrl.receive(function(session) {
             session.connected(function(session) {
               video_out.appendChild(session.video);
-              addLog(session.number + " присоединился.");
               vidCount++;
             });
             session.ended(function(session) {
               ctrl.getVideoElement(session.number).remove();
-              addLog(session.number + " Вышел.");
               vidCount--;
             });
           });
@@ -616,23 +613,6 @@
       </script>
 
       <script type="text/javascript">
-        jQuery(document).ready(function($){
-          {% if room.creator == user.username %}
-            errWrap(login, '{{room.id}}');
-          {% else %}
-            errWrap(login, '{{user.username}}');
-            errWrap(makeCall, '{{room.id}}');
-          {% endif %}
-          {% if not room.audio_works %}
-            try_mute();
-          {% endif %}
-        });
-        window.onunload = function(){
-          end()
-        }
-      </script>
-
-      <script type="text/javascript">
           const chatSocket = new WebSocket(
               'wss://'
               + window.location.host
@@ -705,6 +685,37 @@
         };
       </script>
 
+
+      <script type="text/javascript">
+        const roomSocket = new WebSocket(
+            'wss://'
+            + window.location.host
+            + '/ws/room/'
+            + '{{room.id}}'
+            + '/'
+        );
+
+        roomSocket.onmessage = function(e) {
+            const data = JSON.parse(e.data);
+            addLog(data.name + ' ' + data.status)
+        };
+
+        roomSocket.onopen = function(){
+          roomSocket.send(JSON.stringify({
+            'status': 'присоединился',
+            'name': '{{request.user.pupil.full_name}}',
+          }))
+        };
+
+        roomSocket.onclose = function(e) {
+            console.error('Chat socket closed unexpectedly');
+        };
+
+        window.onunload = function(){
+
+        }
+      </script>
+
       <script type="text/javascript">
         var files; // переменная. будет содержать данные файлов
 
@@ -734,6 +745,33 @@
             }));
           }
         };
+      </script>
+
+      <script type="text/javascript">
+        jQuery(document).ready(function($){
+          {% if room.creator == user.username %}
+            errWrap(login, '{{room.id}}');
+          {% else %}
+            try{
+              errWrap(login, '{{user.username}}');
+              errWrap(makeCall, '{{room.id}}');
+            }catch(e){
+              console.log(e)
+            }
+
+          {% endif %}
+          {% if not room.audio_works %}
+            try_mute();
+          {% endif %}
+        });
+        window.onunload = function(){
+          end()
+
+          roomSocket.send(JSON.stringify({
+            'status': 'вышел',
+            'name': '{{request.user.pupil.full_name}}',
+          }))
+        }
       </script>
     </div>
   </main>
